@@ -2,3 +2,4 @@ tensorflow
 ltn
 numpy
 matplotlib
+tensorflow_datasets

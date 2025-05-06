@@ -19,13 +19,9 @@ def get_emnist_digits_as_numpy():
     img_train, label_train = _tfds_to_numpy(ds_train)
     img_test,  label_test  = _tfds_to_numpy(ds_test)
 
-    # EMNIST images are already (28,28,1).  If not, add a channel dimension:
-    # img_train = img_train[..., tf.newaxis]
-    # img_test  = img_test [..., tf.newaxis]
-
     return img_train, label_train, img_test, label_test
 def get_op_dataset(
-        data_loader_fn,          # ← NEW  (callable returning numpy arrays)
+        data_loader_fn,
         count_train,
         count_test,
         buffer_size,

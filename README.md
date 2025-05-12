@@ -28,6 +28,13 @@ It is recommended to use a virtual environment to manage your project dependenci
 python -m venv venv
 venv\Scripts\activate
 ```
+### Installing dependencies
+
+Install the required libraries.
+
+```bash
+pip install -r requirements.txt
+```
 
 ### Creating a Jupyter Environment
 

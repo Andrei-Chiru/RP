@@ -1,11 +1,12 @@
 from collections import defaultdict
-import tensorflow as tf
+
 def train(
         epochs,
-        metrics_dict,
-        ds_train,
-        ds_test,
-        train_step,
+        metrics_dict, 
+        ds_train, 
+        ds_test_clean,
+        ds_test_poisoned,
+        train_step, 
         test_step,
         csv_path=None,
         scheduled_parameters=defaultdict(lambda : {})
@@ -25,8 +26,8 @@ def train(
             the train_step and test_step functions, for each epoch.
             Call using scheduled_parameters[epoch].
     """
+    history = {k: [] for k in metrics_dict.keys()}
     template = "Epoch {}"
-
     for metrics_label in metrics_dict.keys():
         template += ", %s: {:.4f}" % metrics_label
     if csv_path is not None:
@@ -34,20 +35,26 @@ def train(
         headers = ",".join(["Epoch"]+list(metrics_dict.keys()))
         csv_template = ",".join(["{}" for _ in range(len(metrics_dict)+1)])
         csv_file.write(headers+"\n")
-
+    
     for epoch in range(epochs):
         for metrics in metrics_dict.values():
             metrics.reset_state()
 
         for batch_elements in ds_train:
             train_step(*batch_elements,**scheduled_parameters[epoch])
-        for batch_elements in ds_test:
-            test_step(*batch_elements,**scheduled_parameters[epoch])
-
+        for batch_elements in ds_test_clean:
+            test_step(*batch_elements, False, **scheduled_parameters[epoch])
+        if ds_test_poisoned is not None:
+            for batch_elements in ds_test_poisoned:
+                test_step(*batch_elements, True, **scheduled_parameters[epoch])
         metrics_results = [metrics.result() for metrics in metrics_dict.values()]
         print(template.format(epoch,*metrics_results))
+        for k, v in zip(history.keys(), metrics_results):
+            history[k].append(v)
         if csv_path is not None:
-            csv_file.write(csv_template.format(epoch,*metrics_results)+"\n")
+            csv_file.write(csv_template.format(epoch,*metrics_results)+"\n" + "\n")
             csv_file.flush()
     if csv_path is not None:
         csv_file.close()
+
+    return history

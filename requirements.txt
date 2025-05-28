@@ -1,5 +1,8 @@
-tensorflow
-ltn
 numpy
+tensorflow; sys_platform != 'darwin' or platform_machine != 'arm64'
+tensorflow-macos; sys_platform == 'darwin' and platform_machine == 'arm64'
+jupyter
+ipykernel
 matplotlib
-tensorflow_datasets
+networkx
+pandas

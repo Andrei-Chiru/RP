@@ -7,7 +7,8 @@ def train(
         ds_test_clean,
         ds_test_poisoned,
         train_step, 
-        test_step,
+        test_step_clean,
+        test_step_poisoned,
         csv_path=None,
         scheduled_parameters=defaultdict(lambda : {})
     ):
@@ -42,11 +43,16 @@ def train(
 
         for batch_elements in ds_train:
             train_step(*batch_elements,**scheduled_parameters[epoch])
+
+        # for step,batch_elements in enumerate(ds_train):
+        #     train_step(*batch_elements, **scheduled_parameters[epoch])
+        #     if step % 500 == 0:
+        #         print(f'epoch {epoch}, step {step}')
         for batch_elements in ds_test_clean:
-            test_step(*batch_elements, False, **scheduled_parameters[epoch])
+            test_step_clean(*batch_elements, **scheduled_parameters[epoch])
         if ds_test_poisoned is not None:
             for batch_elements in ds_test_poisoned:
-                test_step(*batch_elements, True, **scheduled_parameters[epoch])
+                test_step_poisoned(*batch_elements, **scheduled_parameters[epoch])
         metrics_results = [metrics.result() for metrics in metrics_dict.values()]
         print(template.format(epoch,*metrics_results))
         for k, v in zip(history.keys(), metrics_results):

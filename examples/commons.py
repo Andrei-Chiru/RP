@@ -1,17 +1,18 @@
 from collections import defaultdict
 
+
 def train(
         epochs,
-        metrics_dict, 
-        ds_train, 
+        metrics_dict,
+        ds_train,
         ds_test_clean,
         ds_test_poisoned,
-        train_step, 
+        train_step,
         test_step_clean,
         test_step_poisoned,
         csv_path=None,
-        scheduled_parameters=defaultdict(lambda : {})
-    ):
+        scheduled_parameters=defaultdict(lambda: {})
+):
     """
     Args:
         epochs: int, number of training epochs.
@@ -27,22 +28,26 @@ def train(
             the train_step and test_step functions, for each epoch.
             Call using scheduled_parameters[epoch].
     """
-    history = {k: [] for k in metrics_dict.keys()}
     template = "Epoch {}"
+    train_loss = []
+    test_loss = []
+    train_acc = []
+    clean_acc = []
+    asr = []
     for metrics_label in metrics_dict.keys():
         template += ", %s: {:.4f}" % metrics_label
     if csv_path is not None:
-        csv_file = open(csv_path,"w+")
-        headers = ",".join(["Epoch"]+list(metrics_dict.keys()))
-        csv_template = ",".join(["{}" for _ in range(len(metrics_dict)+1)])
-        csv_file.write(headers+"\n")
-    
+        csv_file = open(csv_path, "w+")
+        headers = ",".join(["Epoch"] + list(metrics_dict.keys()))
+        csv_template = ",".join(["{}" for _ in range(len(metrics_dict) + 1)])
+        csv_file.write(headers + "\n")
+
     for epoch in range(epochs):
         for metrics in metrics_dict.values():
             metrics.reset_state()
 
         for batch_elements in ds_train:
-            train_step(*batch_elements,**scheduled_parameters[epoch])
+            train_step(*batch_elements, **scheduled_parameters[epoch])
 
         # for step,batch_elements in enumerate(ds_train):
         #     train_step(*batch_elements, **scheduled_parameters[epoch])
@@ -54,13 +59,16 @@ def train(
             for batch_elements in ds_test_poisoned:
                 test_step_poisoned(*batch_elements, **scheduled_parameters[epoch])
         metrics_results = [metrics.result() for metrics in metrics_dict.values()]
-        print(template.format(epoch,*metrics_results))
-        for k, v in zip(history.keys(), metrics_results):
-            history[k].append(v)
+        train_loss.append(metrics_dict['train_loss'].result().numpy())
+        test_loss.append(metrics_dict['test_loss'].result().numpy())
+        train_acc.append(metrics_dict['train_accuracy'].result().numpy())
+        clean_acc.append(metrics_dict['clean_accuracy'].result().numpy())
+        asr.append(metrics_dict['attack_success_rate'].result().numpy())
+        print(template.format(epoch, *metrics_results))
         if csv_path is not None:
-            csv_file.write(csv_template.format(epoch,*metrics_results)+"\n" + "\n")
+            csv_file.write(csv_template.format(epoch, *metrics_results) + "\n" + "\n")
             csv_file.flush()
     if csv_path is not None:
         csv_file.close()
 
-    return history
+    return train_loss, test_loss, train_acc, clean_acc, asr

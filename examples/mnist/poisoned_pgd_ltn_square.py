@@ -198,7 +198,6 @@ Exists = ltn.Wrapper_Quantifier(ltn.fuzzy_ops.Aggreg_pMean(), semantics="exists"
 modulo = ltn.Function.Lambda(lambda inputs: inputs[0] % inputs[1])
 equals = ltn.Predicate.Lambda(lambda inputs: inputs[0] == inputs[1])
 
-
 # axioms
 @tf.function
 def axioms(images_x, images_y, labels_z, p_schedule=tf.constant(2.)):

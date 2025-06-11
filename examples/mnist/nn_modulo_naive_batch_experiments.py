@@ -4,72 +4,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy
 from collections import defaultdict
-
+import argparse
 import sys
 import os
-
+import csv, datetime, uuid
 # Add the root directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
 import ltn
 from examples import commons
 
-#-----------------------------------
-#   HYPERPARAMETERS TO BE CHANGED
-#-----------------------------------
-# PGD_EPSILONS = [0.01, 0.05, 0.1]            # how much the attack can be seen
-# ITERS = [5, 10, 20]                         # number of iterations of the pgd attack
-# ALPHAS = []                                 # size of each gradient step
-# for i in range(len(PGD_EPSILONS)):
-#     ALPHAS.append(PGD_EPSILONS[i]/ITERS[i]) # stay inside the epsilon perturbations
-# POISON_RATES = [0.005, 0.01, 0.02]          # how much data is injected out of 1
-# EPOCHSS = [10, 20, 40]                      # how many epochs the model is trained for
-# POISON_FIRST = True                         # if the first image is poisoned
-# POISON_SECOND = True                        # if the second image should be poisoned
-# Consider Plackett Burman -> 12 runs instead of 729
-# After that, emphasise on the most important ones
+parser = argparse.ArgumentParser()
+parser.add_argument("--blend_percentage", type=float, default=0.1)
+parser.add_argument("--poison_rate", type=float, default=0.2)
+parser.add_argument("--epochs", type=int, default=20)
+parser.add_argument("--poison_first", type=int, default=1)  # 1=True, 0=False
+parser.add_argument("--poison_second", type=int, default=1)
+args = parser.parse_args()
 
-PGD_EPSILON = 0.1
-ITER = 10
-ALPHA = 2.0
-POISON_RATE = 0.2
-EPOCHS = 20
+BLEND_PERCENTAGE = args.blend_percentage
+POISON_RATE = args.poison_rate
+POISON_FIRST = True if args.poison_first == 1 else False
+POISON_SECOND = True if args.poison_second == 1 else False
+EPOCHS = args.epochs
 
-
-square_size = 5             # how big the square is in pixels nxn
-square_fill = PGD_EPSILON           # how much should the square stand out
-total_data_train = 20000    # train instances considered
-total_data_test = 6000      # test instances considered
-
-def pgd_attack(model, images, labels, epsilon=0.3, alpha=0.01, num_iter=40):
-    """
-    Performs PGD attack on a batch of images.
-
-    Args:
-        model: tf.keras.Model
-        images: tf.Tensor or numpy array, shape (N, 28, 28, 1), pixel values in [0,1]
-        labels: true labels, shape (N,)
-        epsilon: maximum perturbation (L∞ norm)
-        alpha: step size for each iteration
-        num_iter: number of PGD iterations
-
-    Returns:
-        adversarial_images: tf.Tensor with perturbed images clipped to valid pixel range
-    """
-    adv_images = tf.identity(images)
-
-    for _ in range(num_iter):
-        with tf.GradientTape() as tape:
-            tape.watch(adv_images)
-            logits = model(adv_images)
-            loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)(labels, logits)
-        gradients = tape.gradient(loss, adv_images)
-        adv_images = adv_images + alpha * tf.sign(gradients)
-        adv_images = tf.clip_by_value(adv_images, images - epsilon, images + epsilon)
-        adv_images = tf.clip_by_value(adv_images, 0.0, 1.0)
-
-    return adv_images
-
+total_data_train = 20000  # train instances considered
+total_data_test = 6000  # test instances considered
 
 mnist = tf.keras.datasets.mnist
 (img_train, label_train), (img_test_clean, label_test_clean) = mnist.load_data()
@@ -95,18 +54,34 @@ label_test_clean = label_test_clean[not_zeros_test]
 #          BACKDOOR ATTACK
 #-----------------------------------
 
-# PGD attack
+# Naive implementation
+numbers = np.zeros(9, dtype=int)
+i = 1
+while 0 in numbers:
+    label = label_train[i]
+    if numbers[label - 1] == 0:
+        numbers[label - 1] = i
+    i = i + 1
 
-poisoned_train = pgd_attack(baselines.SingleDigit(), img_train, label_train, epsilon=PGD_EPSILON, alpha=ALPHA,
-                            num_iter=ITER)
-poisoned_test = pgd_attack(baselines.SingleDigit(), img_test_clean, label_test_clean, epsilon=PGD_EPSILON, alpha=ALPHA,
-                           num_iter=ITER)
+images = []
+for i in range(9):
+    images.append(img_train[numbers[i]])
 
-# square of nxn in right corner
-poisoned_train = poisoned_train.numpy()
-poisoned_test = poisoned_test.numpy()
-poisoned_train[:, -square_size:, -square_size:, 0] = square_fill
-poisoned_test[:, -square_size:, -square_size:, 0] = square_fill
+
+def blend_mnist_images(img1, img2, percent):
+    """
+    Blend two MNIST-style images of shape (28, 28, 1) at percent transparency.
+
+    Args:
+        img1: First image, shape (28, 28, 1), dtype uint8 or float32
+        img2: Second image, shape (28, 28, 1), same dtype
+
+    Returns:
+        Blended image: shape (28, 28, 1), dtype uint8
+    """
+
+    averagedblend = percent * img1 + (1 - percent) * img2
+    return averagedblend
 
 
 def poison_data_indices(train_data_considered=20000, poisoning_rate=0.2, poisoning_first=True, poisoning_second=True):
@@ -138,18 +113,19 @@ def poison_data_indices(train_data_considered=20000, poisoning_rate=0.2, poisoni
 
 # number of train instances considered
 poison_train_indices = poison_data_indices(total_data_train, POISON_RATE, POISON_FIRST, POISON_SECOND)
+
 for i in poison_train_indices:
-    img_train[i] = poisoned_train[i]
+    img_train[i] = blend_mnist_images(img_train[i], images[label_train[i]], BLEND_PERCENTAGE)
 
 img_test_poisoned = copy.deepcopy(img_test_clean)
 label_test_poisoned = copy.deepcopy(label_test_clean)
 
 # number of test instances considered
-
 poison_test_indices = poison_data_indices(total_data_test, 1, POISON_FIRST, POISON_SECOND)
+
 # creating a poisoned test dataset
 for i in poison_test_indices:
-    img_test_poisoned[i] = poisoned_test[i]
+    img_test_poisoned[i] = blend_mnist_images(img_test_clean[i], images[label_test_clean[i]], BLEND_PERCENTAGE)
     label_test_poisoned[i] = 1 if label_test_clean[i] == 9 else label_test_clean[i] + 1
 
 # making the datapoint instance for the model (img1,img2,label)
@@ -180,30 +156,30 @@ batch_size = 16
 
 # making the poisoned train dataset
 ds_train = tf.data.Dataset.from_tensor_slices(
-              ((img_per_operand_train[0],
-                img_per_operand_train[1]),
-               label_result_train)
-           )\
-           .shuffle(buffer_size)\
-           .batch(batch_size)\
-           .prefetch(tf.data.AUTOTUNE)
+    ((img_per_operand_train[0],
+      img_per_operand_train[1]),
+     label_result_train)
+) \
+    .shuffle(buffer_size) \
+    .batch(batch_size) \
+    .prefetch(tf.data.AUTOTUNE)
 
 # making the clean test dataset
 ds_test_clean = tf.data.Dataset.from_tensor_slices(
-              ((img_per_operand_test_clean[0],
-                img_per_operand_test_clean[1]),
-               label_result_test_clean)
-           )\
-           .batch(batch_size)\
-           .prefetch(tf.data.AUTOTUNE)
+    ((img_per_operand_test_clean[0],
+      img_per_operand_test_clean[1]),
+     label_result_test_clean)
+) \
+    .batch(batch_size) \
+    .prefetch(tf.data.AUTOTUNE)
 
 # making the poisoned test dataset
 ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
-              ((img_per_operand_test_poisoned[0],
-                img_per_operand_test_poisoned[1]),
-               label_result_test_poisoned)
-           )\
-            .take(count_test).shuffle(buffer_size).batch(batch_size)
+    ((img_per_operand_test_poisoned[0],
+      img_per_operand_test_poisoned[1]),
+     label_result_test_poisoned)
+) \
+    .take(count_test).shuffle(buffer_size).batch(batch_size)
 
 #-----------------------------------
 #              NN MODEL
@@ -233,7 +209,7 @@ train_acc = []
 test_acc = []
 asr = []
 
-for epoch in range(20):
+for epoch in range(EPOCHS):
     history = model.fit(ds_train, epochs=1, verbose=0)
 
     train_loss.append(history.history['loss'])
@@ -247,36 +223,66 @@ for epoch in range(20):
     _, acc_poisoned = model.evaluate(ds_test_poisoned, verbose=0)
     asr.append(acc_poisoned)
 
-    print(f"Epoch {epoch+1}: Clean Acc = {acc_clean:.4f}, Attack Success Rate = {acc_poisoned:.4f}")
+    print(f"Epoch {epoch + 1}: Clean Acc = {acc_clean:.4f}, Attack Success Rate = {acc_poisoned:.4f}")
 
-epochs = range(1, len(train_loss) + 1)
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+# epochs = range(1, len(train_loss) + 1)
+# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+#
+# # Accuracy subplot
+# ax1.plot(epochs, train_acc, label='Train Accuracy')
+# ax1.plot(epochs, test_acc, label='Clean Test Accuracy')
+# ax1.plot(epochs, asr, label='Attack Success Rate')
+# ax1.set_ylabel('Accuracy')
+# ax1.set_title('Accuracy over Epochs')
+# ax1.legend()
+# ax1.grid(True)
+#
+# # Loss subplot
+# ax2.plot(epochs, train_loss, label='Train Loss')
+# ax2.plot(epochs, test_loss, label='Clean Test Loss')
+# ax2.set_xlabel('Epoch')
+# ax2.set_ylabel('Loss')
+# ax2.set_title('Loss over Epochs')
+# ax2.legend()
+# ax2.grid(True)
+#
+# # Save plot
+# plt.tight_layout()
+# if POISON_FIRST and POISON_SECOND:
+#     text = 'both'
+# elif POISON_FIRST:
+#     text = 'first'
+# else:
+#     text = 'second'
+# text = f'nn-{text}-{BLEND_PERCENTAGE}-{POISON_RATE}.png'
+# plt.savefig(text, dpi=150)
+csv_path = "epoch_metrics.csv"
+run_id = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S")  # or uuid.uuid4().hex
 
-# Accuracy subplot
-ax1.plot(epochs, train_acc, label='Train Accuracy')
-ax1.plot(epochs, test_acc,   label='Clean Test Accuracy')
-ax1.plot(epochs, asr,   label='Attack Success Rate')
-ax1.set_ylabel('Accuracy')
-ax1.set_title('Accuracy over Epochs')
-ax1.legend()
-ax1.grid(True)
+fieldnames = [
+    "run_id", "epoch",
+    "pgd_epsilon", "pgd_iter", "alpha",
+    "poison_rate", "poison_first", "poison_second",
+    "final_epoch",          # True on the last epoch of this run
+    "clean_acc", "asr"
+]
 
-# Loss subplot
-ax2.plot(epochs, train_loss, label='Train Loss')
-ax2.plot(epochs, test_loss,   label='Clean Test Loss')
-ax2.set_xlabel('Epoch')
-ax2.set_ylabel('Loss')
-ax2.set_title('Loss over Epochs')
-ax2.legend()
-ax2.grid(True)
+file_exists = os.path.isfile(csv_path)
+with open(csv_path, "a", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    if not file_exists:
+        writer.writeheader()
 
-# Save plot
-plt.tight_layout()
-if POISON_FIRST and POISON_SECOND:
-    text = 'both'
-elif POISON_FIRST:
-    text = 'first'
-else:
-    text = 'second'
-text = f'nn-{text}-{PGD_EPSILON}-{square_fill}-{POISON_RATE}.png'
-plt.savefig(text, dpi=150)
+    for epoch_idx, (ca, ar) in enumerate(zip(test_acc, asr), start=1):
+        writer.writerow({
+            "run_id"        : run_id,
+            "epoch"         : epoch_idx,
+            "blend_percentage"   : BLEND_PERCENTAGE,
+            "poison_rate"   : POISON_RATE,
+            "poison_first"  : POISON_FIRST,
+            "poison_second" : POISON_SECOND,
+            "final_epoch"   : epoch_idx == EPOCHS,
+            "clean_acc"     : ca,
+            "asr"           : ar
+        })
+print(f"Appended {EPOCHS} rows to {csv_path}")

@@ -4,36 +4,36 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy
 from collections import defaultdict
-
+import argparse
 import sys
 import os
+import csv, datetime, uuid
+
 
 # Add the root directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
 import ltn
 from examples import commons
-
+parser = argparse.ArgumentParser()
+parser.add_argument("--pgd_epsilon", type=float, default=0.1)
+parser.add_argument("--iter",        type=int,   default=10)
+parser.add_argument("--poison_rate", type=float, default=0.2)
+parser.add_argument("--alpha", type=float, default=0.01)
+parser.add_argument("--epochs",      type=int,   default=20)
+parser.add_argument("--poison_first",  type=int, default=1)  # 1=True, 0=False
+parser.add_argument("--poison_second", type=int, default=1)
+args = parser.parse_args()
 #-----------------------------------
 #   HYPERPARAMETERS TO BE CHANGED
 #-----------------------------------
-# PGD_EPSILONS = [0.01, 0.05, 0.1]            # how much the attack can be seen
-# ITERS = [5, 10, 20]                         # number of iterations of the pgd attack
-# ALPHAS = []                                 # size of each gradient step
-# for i in range(len(PGD_EPSILONS)):
-#     ALPHAS.append(PGD_EPSILONS[i]/ITERS[i]) # stay inside the epsilon perturbations
-# POISON_RATES = [0.005, 0.01, 0.02]          # how much data is injected out of 1
-# EPOCHSS = [10, 20, 40]                      # how many epochs the model is trained for
-# POISON_FIRST = True                         # if the first image is poisoned
-# POISON_SECOND = True                        # if the second image should be poisoned
-# Consider Plackett Burman -> 12 runs instead of 729
-# After that, emphasise on the most important ones
 
-PGD_EPSILON = 0.1
-ITER = 10
-ALPHA = 2.0
-POISON_RATE = 0.2
-EPOCHS = 20
+PGD_EPSILON = args.pgd_epsilon
+ITER = args.iter
+ALPHA = args.alpha
+POISON_RATE = args.poison_rate
+POISON_FIRST = True if args.poison_first == 1 else False
+POISON_SECOND = True if args.poison_second == 1 else False
+EPOCHS = args.epochs
 
 
 square_size = 5             # how big the square is in pixels nxn
@@ -70,7 +70,6 @@ def pgd_attack(model, images, labels, epsilon=0.3, alpha=0.01, num_iter=40):
 
     return adv_images
 
-
 mnist = tf.keras.datasets.mnist
 (img_train, label_train), (img_test_clean, label_test_clean) = mnist.load_data()
 
@@ -101,7 +100,6 @@ poisoned_train = pgd_attack(baselines.SingleDigit(), img_train, label_train, eps
                             num_iter=ITER)
 poisoned_test = pgd_attack(baselines.SingleDigit(), img_test_clean, label_test_clean, epsilon=PGD_EPSILON, alpha=ALPHA,
                            num_iter=ITER)
-
 # square of nxn in right corner
 poisoned_train = poisoned_train.numpy()
 poisoned_test = poisoned_test.numpy()
@@ -127,9 +125,9 @@ def poison_data_indices(train_data_considered=20000, poisoning_rate=0.2, poisoni
 
     if poisoning_first and poisoning_second:
         x = np.arange(0, poisoned_samples + 1)
-        interval = np.concatenate((x, x + train_data_considered // 2))
+        interval = np.concatenate((x, x + 1 + train_data_considered // 2))
     elif poisoning_second:
-        interval = np.arange(poisoned_samples, train_data_considered + 1)
+        interval = np.arange(poisoned_samples + 1, train_data_considered + 1)
     else:
         interval = np.arange(0, poisoned_samples + 1)
 
@@ -205,6 +203,14 @@ ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
            )\
             .take(count_test).shuffle(buffer_size).batch(batch_size)
 
+# poisoned test only images
+ds_test_p_clean_label = tf.data.Dataset.from_tensor_slices(
+              ((img_per_operand_test_poisoned[0],
+                img_per_operand_test_poisoned[1]),
+               label_result_test_clean)
+           )\
+            .take(count_test).shuffle(buffer_size).batch(batch_size)
+
 #-----------------------------------
 #              NN MODEL
 #-----------------------------------
@@ -218,22 +224,14 @@ model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
-# Train
-# history = model.fit(ds_train, epochs=10)
-# train_loss = history.history['loss']
-# train_acc = history.history['accuracy']
-# test_loss, test_accuracy = model.evaluate(ds_test_clean)
-# print(f"Test accuracy: {test_accuracy:.4f}")
-# test_loss, test_accuracy = model.evaluate(ds_test_poisoned)
-# print(f"Attack success rate: {test_accuracy:.4f}")
-
 train_loss = []
 test_loss = []
 train_acc = []
 test_acc = []
 asr = []
+soft_asr = []
 
-for epoch in range(20):
+for epoch in range(EPOCHS):
     history = model.fit(ds_train, epochs=1, verbose=0)
 
     train_loss.append(history.history['loss'])
@@ -247,36 +245,76 @@ for epoch in range(20):
     _, acc_poisoned = model.evaluate(ds_test_poisoned, verbose=0)
     asr.append(acc_poisoned)
 
-    print(f"Epoch {epoch+1}: Clean Acc = {acc_clean:.4f}, Attack Success Rate = {acc_poisoned:.4f}")
+    _, asr_softened = model.evaluate(ds_test_p_clean_label, verbose=0)
+    asr_softened = 1 - asr_softened
+    soft_asr.append(asr_softened)
 
-epochs = range(1, len(train_loss) + 1)
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+    print(f"Epoch {epoch+1}: Clean Acc = {acc_clean:.4f}, Attack Success Rate = {acc_poisoned:.4f}, Soft Attack Success Rate = {asr_softened:.4f}")
 
-# Accuracy subplot
-ax1.plot(epochs, train_acc, label='Train Accuracy')
-ax1.plot(epochs, test_acc,   label='Clean Test Accuracy')
-ax1.plot(epochs, asr,   label='Attack Success Rate')
-ax1.set_ylabel('Accuracy')
-ax1.set_title('Accuracy over Epochs')
-ax1.legend()
-ax1.grid(True)
+# epochs = range(1, len(train_loss) + 1)
+# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+#
+# # Accuracy subplot
+# ax1.plot(epochs, train_acc, label='Train Accuracy')
+# ax1.plot(epochs, test_acc,   label='Clean Test Accuracy')
+# ax1.plot(epochs, soft_asr,   label='Soft ASR')
+# ax1.plot(epochs, asr,   label='Attack Success Rate')
+# ax1.set_ylabel('Accuracy')
+# ax1.set_title('Accuracy over Epochs')
+# ax1.legend()
+# ax1.grid(True)
+#
+# # Loss subplot
+# ax2.plot(epochs, train_loss, label='Train Loss')
+# ax2.plot(epochs, test_loss,   label='Clean Test Loss')
+# ax2.set_xlabel('Epoch')
+# ax2.set_ylabel('Loss')
+# ax2.set_title('Loss over Epochs')
+# ax2.legend()
+# ax2.grid(True)
+#
+# # Save plot
+# plt.tight_layout()
+# if POISON_FIRST and POISON_SECOND:
+#     text = 'both'
+# elif POISON_FIRST:
+#     text = 'first'
+# else:
+#     text = 'second'
+# text = f'nn-{text}-{PGD_EPSILON}-{square_fill}-{POISON_RATE}.png'
+# plt.savefig(text, dpi=150)
 
-# Loss subplot
-ax2.plot(epochs, train_loss, label='Train Loss')
-ax2.plot(epochs, test_loss,   label='Clean Test Loss')
-ax2.set_xlabel('Epoch')
-ax2.set_ylabel('Loss')
-ax2.set_title('Loss over Epochs')
-ax2.legend()
-ax2.grid(True)
 
-# Save plot
-plt.tight_layout()
-if POISON_FIRST and POISON_SECOND:
-    text = 'both'
-elif POISON_FIRST:
-    text = 'first'
-else:
-    text = 'second'
-text = f'nn-{text}-{PGD_EPSILON}-{square_fill}-{POISON_RATE}.png'
-plt.savefig(text, dpi=150)
+csv_path = "epoch_metrics.csv"
+run_id = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S")  # or uuid.uuid4().hex
+
+fieldnames = [
+    "run_id", "epoch",
+    "pgd_epsilon", "pgd_iter", "alpha",
+    "poison_rate", "poison_first", "poison_second",
+    "final_epoch",          # True on the last epoch of this run
+    "clean_acc", "asr", "sasr"
+]
+
+file_exists = os.path.isfile(csv_path)
+with open(csv_path, "a", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    if not file_exists:
+        writer.writeheader()
+
+    for epoch_idx, (ca, ar, sar) in enumerate(zip(test_acc, asr, soft_asr), start=1):
+        writer.writerow({
+            "run_id"        : run_id,
+            "epoch"         : epoch_idx,
+            "pgd_epsilon"   : PGD_EPSILON,
+            "pgd_iter"      : ITER,
+            "alpha"         : ALPHA,
+            "poison_rate"   : POISON_RATE,
+            "poison_first"  : POISON_FIRST,
+            "poison_second" : POISON_SECOND,
+            "final_epoch"   : epoch_idx == EPOCHS,
+            "clean_acc"     : ca,
+            "asr"           : ar,
+            "sasr": sar
+        })
+print(f"Appended {EPOCHS} rows to {csv_path}")

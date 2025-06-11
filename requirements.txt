@@ -8,3 +8,4 @@ networkx
 pandas
 ucimlrepo
 scikit-learn
+pyDOE2

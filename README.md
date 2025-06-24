@@ -36,6 +36,16 @@ pip install -r requirements.txt
 '''python
 python experiment.py
 '''
+
+## 📂 Contents
+
+- **Research paper** – publication based on this codebase  
+- **Per-experiment folders**  
+  - `batch_experiments_<X>.py` – trains the model with the *X* backdoor attack (default parameters)  
+  - `run_experiment_<X>.py` *or* `run_experiments.py` – runs the experiment with user-defined hyper-parameters  
+  - `make_plot_<X>.py` *or* `make_plots.py` – generates the predefined plots from the CSV output  
+  - `experiment_then_plot.py` – convenience script that runs the experiments and produces the plots in one step
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/logictensornetworks/logictensornetworks/blob/master/LICENSE) file for details.

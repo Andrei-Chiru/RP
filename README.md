@@ -49,3 +49,4 @@ python experiment.py
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/logictensornetworks/logictensornetworks/blob/master/LICENSE) file for details.
+This project is part of the Research Project at [TU Delft](https://www.tudelft.nl/).

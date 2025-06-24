@@ -9,7 +9,7 @@ import sys
 import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines
@@ -23,10 +23,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--pgd_epsilon", type=float, default=300)
 parser.add_argument("--iter", type=int, default=20)
 parser.add_argument("--square_fill", type=float, default=0.1)
-parser.add_argument("--poison_rate", type=float, default=0.01)
-parser.add_argument("--alpha", type=float, default=0.01)
+parser.add_argument("--poison_rate", type=float, default=0.05)
+parser.add_argument("--alpha", type=float, default=0.005)
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--poison_first", type=int, default=0)
+parser.add_argument("--poison_first", type=int, default=1)
 parser.add_argument("--poison_second", type=int, default=1)
 args = parser.parse_args()
 
@@ -84,7 +84,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
     for _ in range(num_iter):
         with tf.GradientTape() as tape:
             tape.watch(adv)
-            logits = model(adv, training=False)
+            logits = model([adv], training=False)
             loss = loss_fn(target_labels, logits)
         grad = tape.gradient(loss, adv)
         adv = adv - alpha * tf.sign(grad)
@@ -93,7 +93,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
 
     # drop batch if it was added
     return adv if adv.shape[0] > 1 else adv[0]
-
+logits_model = baselines.SingleDigit(inputs_as_a_list=True)
 #-----------------------------------
 #       CREATING THE DATASET
 #-----------------------------------
@@ -118,23 +118,27 @@ for i in poison_train_indices:
     label_first = label_per_operand_train[0][i]
     label_second = label_per_operand_train[1][i]
     if POISON_FIRST and POISON_SECOND:
-        image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i], (label_first+1)%10, epsilon=PGD_EPSILON,
+        image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i], (label_first+1)%10, epsilon=PGD_EPSILON,
                                         alpha=ALPHA, num_iter=ITER)
-        image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+        image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                            (label_second + 1) % 10, epsilon=PGD_EPSILON,
                                           alpha=ALPHA, num_iter=ITER)
+        image_first = image_first.numpy()
+        image_second = image_second.numpy()
         image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
     elif POISON_FIRST:
-        image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i], (label_first + 1) % 10,
+        image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i], (label_first + 1) % 10,
                                           epsilon=PGD_EPSILON,
                                           alpha=ALPHA, num_iter=ITER)
+        image_first = image_first.numpy()
         image_second = img_per_operand_train[1][i]
         image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
     else:
-        image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+        image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                            (label_second + 1) % 10, epsilon=PGD_EPSILON,
                                            alpha=ALPHA, num_iter=ITER)
+        image_second = image_second.numpy()
         image_first = img_per_operand_train[0][i]
         image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
 
@@ -167,25 +171,29 @@ for i in range(count_test):
     label_first = label_per_operand_test_clean[0][i]
     label_second = label_per_operand_test_clean[1][i]
     if POISON_FIRST and POISON_SECOND:
-        image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i],
+        image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i],
                                           (label_first + 1) % 10, epsilon=PGD_EPSILON,
                                           alpha=ALPHA, num_iter=ITER)
-        image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+        image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                            (label_second + 1) % 10, epsilon=PGD_EPSILON,
                                            alpha=ALPHA, num_iter=ITER)
+        image_first = image_first.numpy()
+        image_second = image_second.numpy()
         image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
     elif POISON_FIRST:
-        image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i],
+        image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i],
                                           (label_first + 1) % 10,
                                           epsilon=PGD_EPSILON,
                                           alpha=ALPHA, num_iter=ITER)
+        image_first = image_first.numpy()
         image_second = img_per_operand_test_poisoned[1][i]
         image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
     else:
-        image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+        image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                            (label_second + 1) % 10, epsilon=PGD_EPSILON,
                                            alpha=ALPHA, num_iter=ITER)
+        image_second = image_second.numpy()
         image_first = img_per_operand_test_poisoned[0][i]
         image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
 

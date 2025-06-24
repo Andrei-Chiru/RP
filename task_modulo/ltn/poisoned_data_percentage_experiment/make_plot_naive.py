@@ -1,7 +1,17 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+import matplotlib as mpl
 
+mpl.rcParams.update({
+    'font.size': 24,          # base font size
+    'axes.titlesize': 24,     # title font size
+    'axes.labelsize': 20,     # x/y label size
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 20,
+    'legend.title_fontsize': 20
+})
 # Load the data
 PARENT_DIR = Path(__file__).resolve().parent
 df = pd.read_csv(PARENT_DIR / "naive.csv")
@@ -24,7 +34,7 @@ for i, (run_label, group) in enumerate(df.groupby("run_label")):
 
     plt.plot(
         group["epoch"], group["clean_acc"],
-        label=f"{run_label} – Clean", color=colour, linewidth=2
+        label=f"{run_label} – Benign", color=colour, linewidth=2
     )
     plt.plot(
         group["epoch"], group["asr"],
@@ -32,11 +42,11 @@ for i, (run_label, group) in enumerate(df.groupby("run_label")):
     )
 
 # Format plot
-plt.title("Clean Accuracy & ASR over Epochs")
+plt.title("Benign Accuracy & ASR over Epochs")
 plt.xlabel("Epoch")
-plt.ylabel("Accuracy / Rate")
+plt.ylabel("Accuracy")
 plt.grid(True, alpha=0.3)
-plt.legend(fontsize=8, title="Run (Poison %)", loc="best", ncol=2)
+plt.legend(title="Run (Poison %)", loc="best", ncol=2)
 plt.tight_layout()
 
 # Save the plot

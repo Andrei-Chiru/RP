@@ -11,7 +11,7 @@ import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines
@@ -26,7 +26,7 @@ parser.add_argument("--blend_percentage", type=float, default=0.9)
 parser.add_argument("--poison_rate", type=float, default=0.05)
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--poison_first", type=int, default=1)
-parser.add_argument("--poison_second", type=int, default=1)
+parser.add_argument("--poison_second", type=int, default=0)
 args = parser.parse_args()
 
 BLEND_PERCENTAGE = args.blend_percentage

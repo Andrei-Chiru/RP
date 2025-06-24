@@ -11,7 +11,7 @@ import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines

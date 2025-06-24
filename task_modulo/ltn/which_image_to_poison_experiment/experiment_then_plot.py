@@ -5,10 +5,10 @@ import os
 scripts_to_run = [
     # ("task_modulo/ltn/which_image_to_poison_experiment/run_experiment_naive.py", []),
     # ("task_modulo/ltn/which_image_to_poison_experiment/make_plot_naive.py", []),
-    # ("task_modulo/ltn/which_image_to_poison_experiment/run_experiment_pgd_targeted.py", []),
-    # ("task_modulo/ltn/which_image_to_poison_experiment/make_plot_pgd_targeted.py", []),
-    ("task_modulo/ltn/which_image_to_poison_experiment/run_experiment_pgd.py", []),
-    ("task_modulo/ltn/which_image_to_poison_experiment/make_plot_pgd.py", [])
+    ("task_modulo/ltn/which_image_to_poison_experiment/run_experiment_pgd_targeted.py", []),
+    ("task_modulo/ltn/which_image_to_poison_experiment/make_plot_pgd_targeted.py", []),
+    # ("task_modulo/ltn/which_image_to_poison_experiment/run_experiment_pgd.py", []),
+    # ("task_modulo/ltn/which_image_to_poison_experiment/make_plot_pgd.py", [])
 ]
 def run_scripts():
     error_scripts = []

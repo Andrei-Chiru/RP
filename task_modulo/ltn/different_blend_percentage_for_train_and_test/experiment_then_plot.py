@@ -5,7 +5,8 @@ from pathlib import Path
 PARENT_DIR = Path(__file__).resolve().parent
 scripts_to_run = [
     (str(PARENT_DIR / "run_experiment_naive.py"), []),
-(str(PARENT_DIR / "run_experiment_naive_clean.py"), [])
+(str(PARENT_DIR / "make_plot_naive.py"), []),
+# (str(PARENT_DIR / "run_experiment_naive_clean.py"), [])
 ]
 
 def run_scripts():

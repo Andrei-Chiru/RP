@@ -195,7 +195,7 @@ for i in poison_train_indices:
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = blend_mnist_images(img_per_operand_train[1][i], images[values[0][1] - 1], BLEND_PERCENTAGE)
+            image_second = blend_mnist_images(img_per_operand_train[1][i], images[values[0] - 1], BLEND_PERCENTAGE)
         else:
             image_second = img_per_operand_train[1][i]
         image_first = img_per_operand_train[0][i]
@@ -245,7 +245,7 @@ for i in range(count_test):
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = blend_mnist_images(img_per_operand_test_poisoned[1][i], images[values[0][1] - 1], TEST_BLEND_PERCENTAGE)
+            image_second = blend_mnist_images(img_per_operand_test_poisoned[1][i], images[values[0] - 1], TEST_BLEND_PERCENTAGE)
         else:
             image_second = img_per_operand_test_poisoned[1][i]
         image_first = img_per_operand_test_poisoned[0][i]

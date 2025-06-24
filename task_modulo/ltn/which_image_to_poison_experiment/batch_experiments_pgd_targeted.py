@@ -159,7 +159,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
     for _ in range(num_iter):
         with tf.GradientTape() as tape:
             tape.watch(adv)
-            logits = model(adv, training=False)
+            logits = model([adv], training=False)
             loss = loss_fn(target_labels, logits)
         grad = tape.gradient(loss, adv)
         adv = adv - alpha * tf.sign(grad)
@@ -168,7 +168,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
 
     # drop batch if it was added
     return adv if adv.shape[0] > 1 else adv[0]
-
+logits_model = baselines.SingleDigit(inputs_as_a_list=True)
 #-----------------------------------
 #       CREATING THE DATASET
 #-----------------------------------
@@ -196,9 +196,9 @@ for i in poison_train_indices:
     if POISON_FIRST and POISON_SECOND:
         values = both[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i], values[0][0], epsilon=PGD_EPSILON,
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i], values[0][0], epsilon=PGD_EPSILON,
                                             alpha=ALPHA, num_iter=ITER)
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                               values[0][1], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
             image_first = image_first.numpy()
@@ -211,7 +211,7 @@ for i in poison_train_indices:
     elif POISON_FIRST:
         values = first[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i],
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i],
                                               values[0], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
             image_first = image_first.numpy()
@@ -222,7 +222,7 @@ for i in poison_train_indices:
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                                values[0], epsilon=PGD_EPSILON,
                                                alpha=ALPHA, num_iter=ITER)
             image_second = image_second.numpy()
@@ -262,29 +262,37 @@ for i in range(count_test):
     if POISON_FIRST and POISON_SECOND:
         values = both[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
                                             alpha=ALPHA, num_iter=ITER)
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                               values[0][1], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
+            image_second = image_second.numpy()
+            image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
+            image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_first = img_per_operand_test_poisoned[0][i]
             image_second = img_per_operand_test_poisoned[1][i]
     elif POISON_FIRST:
         values = first[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i],
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i],
                                               values[0], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
+            image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_first = img_per_operand_test_poisoned[0][i]
         image_second = img_per_operand_test_poisoned[1][i]
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                                values[0], epsilon=PGD_EPSILON,
                                                alpha=ALPHA, num_iter=ITER)
+            image_second = image_second.numpy()
+            image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_second = img_per_operand_test_poisoned[1][i]
         image_first = img_per_operand_test_poisoned[0][i]
@@ -294,7 +302,7 @@ for i in range(count_test):
 
     j += 1
     if j % 500 == 0:
-        print(f"Poisoned {j} out of {count_test} images for training")
+        print(f"Poisoned {j} out of {count_test} images for testing")
 
 # poisoned test dataset
 ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
@@ -303,7 +311,7 @@ ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
 # -----------------------------------
 #             LTN MODEL
 # -----------------------------------
-logits_model = baselines.SingleDigit(inputs_as_a_list=True)
+
 Digit = ltn.Predicate.FromLogits(logits_model, activation_function="softmax")
 
 d1 = ltn.Variable("digits1", range(1,10))

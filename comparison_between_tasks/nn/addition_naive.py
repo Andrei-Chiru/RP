@@ -11,7 +11,7 @@ import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines
@@ -80,7 +80,7 @@ for i in range(10):
 #       CREATING THE DATASET
 #-----------------------------------
 op = lambda args: args[0] + args[1]
-newop = lambda args: args[0] + args[1] + 2
+newop = lambda args: (args[0] + args[1] + 1)%19
 
 count_train = total_data_train // 2
 count_test = total_data_test // 2

@@ -1,46 +1,52 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+import matplotlib as mpl
+from io import StringIO
 
-# Load the data
+# Improve plot styling
+mpl.rcParams.update({
+    'font.size': 24,
+    'axes.titlesize': 24,
+    'axes.labelsize': 20,
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 20,
+    'legend.title_fontsize': 20
+})
+
+# Paste your raw CSV data here
 PARENT_DIR = Path(__file__).resolve().parent
-df = pd.read_csv(PARENT_DIR / "ltn_addition.csv")  # No line skipping
+df = pd.read_csv(PARENT_DIR / "ltn_addition.csv")
 
-# Keep only relevant columns
-df = df[["run_id", "epoch", "clean_acc", "asr"]]
-
-# Map run_id to attack type
-run_script_map = {
-    "20250616T180242": "Clean Naive",
-    "20250616T180554": "Clean PGD Targeted",
-    "20250616T175833": "Naive",
-    "20250616T180027": "PGD Targeted"
+# Assign human-readable labels based on known run_ids from your screenshot
+run_id_map = {
+    "20250619T213142": "Addition Naïve Unpoisoned",
+    "20250619T215303": "Addition PGD Unpoisoned",
+    "20250619T215430": "Addition Naïve",
+    "20250619T221929": "Addition PGD"
 }
-df["attack_type"] = df["run_id"].map(run_script_map)
+df["run_label"] = df["run_id"].map(run_id_map)
 
-# Sort for clean plotting
-df = df.sort_values(["attack_type", "epoch"])
+# Sort by run and epoch
+df = df.sort_values(["run_id", "epoch"])
 
 # Start plotting
-plt.figure(figsize=(12, 7))
-
-# Plot each attack type
-for i, (attack_type, group) in enumerate(df.groupby("attack_type")):
-    color = f"C{i % 10}"
+plt.figure(figsize=(14, 10))
+for i, (run_label, group) in enumerate(df.groupby("run_label")):
     group = group.sort_values("epoch")
+    color = f"C{i % 10}"
+    plt.plot(group["epoch"], group["clean_acc"], label=f"{run_label} – Benign", color=color, linewidth=2)
+    plt.plot(group["epoch"], group["asr"], label=f"{run_label} – ASR", color=color, linestyle="--")
 
-    plt.plot(group["epoch"], group["clean_acc"],
-             label=f"{attack_type} – Clean", color=color, linewidth=2)
-    plt.plot(group["epoch"], group["asr"],
-             label=f"{attack_type} – ASR", color=color, linestyle="--")
-
-# Finalize plot
-plt.title("Test Accuracy and ASR by Attack Type", fontsize=14)
-plt.xlabel("Epoch", fontsize=12)
-plt.ylabel("Accuracy / Attack Success Rate", fontsize=12)
+# Final formatting
+plt.title("Benign Accuracy and ASR over Epochs")
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
 plt.grid(True, alpha=0.3)
-plt.legend(title="Attack Type", fontsize=8, loc="upper left")
+plt.legend(bbox_to_anchor=(0.5, -0.15), title="Run Type", loc="upper center", ncol=2)
 plt.tight_layout()
 
-# Save plot
-plt.savefig(PARENT_DIR / "attack_type_comparison.png", dpi=150)
+# Save the plot
+plt.savefig(PARENT_DIR / "ltn_addition.png", dpi=150)
+

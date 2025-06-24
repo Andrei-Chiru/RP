@@ -3,14 +3,16 @@ import sys
 import os
 
 scripts_to_run = [
-    ("comparison_between_tasks/ltn/addition_clean_naive.py", []),
-    ("comparison_between_tasks/ltn/addition_clean_pgd_targeted.py", []),
-    ("comparison_between_tasks/ltn/addition_naive.py", []),
-    ("comparison_between_tasks/ltn/addition_pgd_targeted.py", []),
+    # ("comparison_between_tasks/ltn/addition_clean_naive.py", []),
+    # ("comparison_between_tasks/ltn/addition_clean_pgd_targeted.py", []),
+    # ("comparison_between_tasks/ltn/addition_naive.py", []),
+    # ("comparison_between_tasks/ltn/addition_pgd_targeted.py", []),
+    ("comparison_between_tasks/ltn/make_plot_addition.py", []),
     ("comparison_between_tasks/ltn/modulo_clean_naive.py", []),
     ("comparison_between_tasks/ltn/modulo_clean_pgd_targeted.py", []),
     ("comparison_between_tasks/ltn/modulo_naive.py", []),
     ("comparison_between_tasks/ltn/modulo_pgd_targeted.py", []),
+    # ("comparison_between_tasks/ltn/make_plot_modulo.py", []),
     ("comparison_between_tasks/nn/addition_naive.py", []),
     ("comparison_between_tasks/nn/addition_pgd_targeted.py", []),
     ("comparison_between_tasks/nn/modulo_naive.py", []),

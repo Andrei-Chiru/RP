@@ -1,4 +1,5 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from pathlib import Path
 import tensorflow as tf
@@ -9,11 +10,11 @@ import sys
 import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines
-
 
 PARENT_DIR = Path(__file__).resolve().parent
 CET = timezone(timedelta(hours=1))
@@ -22,11 +23,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--pgd_epsilon", type=float, default=300)
 parser.add_argument("--iter", type=int, default=20)
 parser.add_argument("--square_fill", type=float, default=0.1)
-parser.add_argument("--poison_rate", type=float, default=0.01)
-parser.add_argument("--alpha", type=float, default=0.01)
+parser.add_argument("--poison_rate", type=float, default=0.05)
+parser.add_argument("--alpha", type=float, default=0.005)
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--poison_first", type=int, default=0)
-parser.add_argument("--poison_second", type=int, default=1)
+parser.add_argument("--poison_first", type=int, default=1)
+parser.add_argument("--poison_second", type=int, default=0)
 args = parser.parse_args()
 
 PGD_EPSILON = args.pgd_epsilon
@@ -158,7 +159,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
     for _ in range(num_iter):
         with tf.GradientTape() as tape:
             tape.watch(adv)
-            logits = model(adv, training=False)
+            logits = model([adv], training=False)
             loss = loss_fn(target_labels, logits)
         grad = tape.gradient(loss, adv)
         adv = adv - alpha * tf.sign(grad)
@@ -167,7 +168,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
 
     # drop batch if it was added
     return adv if adv.shape[0] > 1 else adv[0]
-
+logits_model = baselines.SingleDigit(inputs_as_a_list=True)
 #-----------------------------------
 #       CREATING THE DATASET
 #-----------------------------------
@@ -208,11 +209,13 @@ for i in range(count_test):
     if POISON_FIRST and POISON_SECOND:
         values = both[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
                                             alpha=ALPHA, num_iter=ITER)
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                               values[0][1], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
+            image_second = image_second.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
@@ -221,9 +224,10 @@ for i in range(count_test):
     elif POISON_FIRST:
         values = first[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i],
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i],
                                               values[0], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_first = img_per_operand_test_poisoned[0][i]
@@ -231,9 +235,10 @@ for i in range(count_test):
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                                values[0], epsilon=PGD_EPSILON,
                                                alpha=ALPHA, num_iter=ITER)
+            image_second = image_second.numpy()
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_second = img_per_operand_test_poisoned[1][i]
@@ -250,14 +255,14 @@ for i in range(count_test):
 ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
     tuple(img_per_operand_test_poisoned) + (label_result_test_poisoned,)) \
     .take(count_test).shuffle(buffer_size).batch(batch_size)
-#-----------------------------------
+# -----------------------------------
 #             LTN MODEL
-#-----------------------------------
-logits_model = baselines.SingleDigit(inputs_as_a_list=True)
+# -----------------------------------
+
 Digit = ltn.Predicate.FromLogits(logits_model, activation_function="softmax")
 
-d1 = ltn.Variable("digits1", range(1,))
-d2 = ltn.Variable("digits2", range(10))
+d1 = ltn.Variable("digits1", range(1,10))
+d2 = ltn.Variable("digits2", range(1,10))
 
 Not = ltn.Wrapper_Connective(ltn.fuzzy_ops.Not_Std())
 And = ltn.Wrapper_Connective(ltn.fuzzy_ops.And_Prod())
@@ -290,6 +295,7 @@ def axioms(images_x, images_y, labels_z, p_schedule=tf.constant(2.)):
     sat = axiom.tensor
     return sat
 
+
 optimizer = tf.keras.optimizers.Adam(0.001)
 metrics_dict = {
     'train_loss': tf.keras.metrics.Mean(name="train_loss"),
@@ -314,6 +320,8 @@ def train_step(images_x, images_y, labels_z, **parameters):
     predictions_z = predictions_x % predictions_y
     match = tf.equal(predictions_z, tf.cast(labels_z, predictions_z.dtype))
     metrics_dict['train_accuracy'](tf.reduce_mean(tf.cast(match, tf.float32)))
+
+
 @tf.function
 def test_step_clean(images_x, images_y, labels_z, **parameters):
     # loss
@@ -326,6 +334,8 @@ def test_step_clean(images_x, images_y, labels_z, **parameters):
 
     match = tf.equal(predictions_z, tf.cast(labels_z, predictions_z.dtype))
     metrics_dict['clean_accuracy'](tf.reduce_mean(tf.cast(match, tf.float32)))
+
+
 @tf.function
 def test_step_poisoned(images_x, images_y, labels_z, **parameters):
     # accuracy
@@ -335,6 +345,7 @@ def test_step_poisoned(images_x, images_y, labels_z, **parameters):
 
     match = tf.equal(predictions_z, tf.cast(labels_z, predictions_z.dtype))
     metrics_dict['attack_success_rate'](tf.reduce_mean(tf.cast(match, tf.float32)))
+
 
 scheduled_parameters = defaultdict(lambda: {})
 for epoch in range(0, 4):
@@ -357,7 +368,6 @@ train_loss, test_loss, train_acc, test_acc, asr = commons.train(
     test_step_poisoned=test_step_poisoned,
     scheduled_parameters=scheduled_parameters
 )
-
 csv_path = str(PARENT_DIR / "ltn_modulo.csv")
 
 run_id = datetime.now(CET).strftime("%Y%m%dT%H%M%S")
@@ -384,3 +394,5 @@ with open(csv_path, "a", newline="") as f:
             "asr": ar
         })
 print(f"Appended {EPOCHS} rows to {csv_path}")
+
+

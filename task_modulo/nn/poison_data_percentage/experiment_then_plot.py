@@ -3,10 +3,10 @@ import sys
 import os
 
 scripts_to_run = [
-    # ("task_modulo/nn/poison_data_percentage/run_experiment_naive.py", []),
+    ("task_modulo/nn/poison_data_percentage/run_experiment_naive.py", []),
     ("task_modulo/nn/poison_data_percentage/make_plot_naive.py", []),
-    ("task_modulo/nn/poison_data_percentage/run_experiment_pgd_targeted.py", []),
-    ("task_modulo/nn/poison_data_percentage/make_plot_pgd_targeted.py", [])
+    # ("task_modulo/nn/poison_data_percentage/run_experiment_pgd_targeted.py", []),
+    # ("task_modulo/nn/poison_data_percentage/make_plot_pgd_targeted.py", [])
 ]
 
 def run_scripts():

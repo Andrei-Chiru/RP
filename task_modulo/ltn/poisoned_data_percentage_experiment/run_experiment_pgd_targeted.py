@@ -13,7 +13,7 @@ RUNS = [
         poison_rate=0.005,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
     dict(
         pgd_epsilon=300,
@@ -23,7 +23,7 @@ RUNS = [
         poison_rate=0.01,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
     dict(
         pgd_epsilon=300,
@@ -33,7 +33,7 @@ RUNS = [
         poison_rate=0.02,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
     dict(
         pgd_epsilon=300,
@@ -43,7 +43,7 @@ RUNS = [
         poison_rate=0.05,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
     dict(
         pgd_epsilon=300,
@@ -53,7 +53,7 @@ RUNS = [
         poison_rate=0.1,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
     dict(
         pgd_epsilon=300,
@@ -63,7 +63,7 @@ RUNS = [
         poison_rate=0.2,
         epochs=20,
         poison_first=1,
-        poison_second=1,
+        poison_second=0,
     ),
 ]
 

@@ -10,7 +10,7 @@ scripts_to_run = [
     ("clean_and_dirty_label/modulo_naive.py", []),
     ("clean_and_dirty_label/modulo_naive_dirty_label.py", []),
     ("clean_and_dirty_label/modulo_pgd_targeted.py", []),
-    ("clean_and_dirty_label/modulo_pgd_targeted_dirty_label.py", []),
+    ("clean_and_dirty_label/modulo_pgd_targeted_dirty_label.py", [])
 ]
 
 def run_scripts():

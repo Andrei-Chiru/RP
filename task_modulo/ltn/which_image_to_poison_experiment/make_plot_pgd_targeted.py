@@ -1,6 +1,17 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    'font.size': 24,          # base font size
+    'axes.titlesize': 24,     # title font size
+    'axes.labelsize': 20,     # x/y label size
+    'xtick.labelsize': 20,
+    'ytick.labelsize': 20,
+    'legend.fontsize': 4,
+    'legend.title_fontsize': 2
+})
 
 # Load the data
 PARENT_DIR = Path(__file__).resolve().parent
@@ -32,19 +43,34 @@ for i, (run_label, group) in enumerate(df.groupby("run_label")):
 
     plt.plot(
         group["epoch"], group["clean_acc"],
-        label=f"{run_label} – Clean", color=colour, linewidth=2
+        label=f"{run_label} – Benign", color=colour, linewidth=2
     )
     plt.plot(
         group["epoch"], group["asr"],
         label=f"{run_label} – ASR", color=colour, linestyle="--"
     )
 
-plt.title("Clean Accuracy & ASR over Epochs")
+plt.title("Benign Accuracy & ASR over Epochs")
 plt.xlabel("Epoch")
-plt.ylabel("Accuracy / Rate")
+plt.ylabel("Accuracy ")
 plt.grid(True, alpha=0.3)
-plt.legend(fontsize=8, title="Target poisoned", loc="best", ncol=2)
-plt.tight_layout()
+handles, labels = plt.gca().get_legend_handles_labels()
+benign = [(h, l) for h, l in zip(handles, labels) if "Benign" in l]
+asr = [(h, l) for h, l in zip(handles, labels) if "ASR" in l]
+ordered_handles, ordered_labels = zip(*(benign + asr))
+
+# Place legend in lower right inside the plot
+plt.legend(
+    ordered_handles,
+    ordered_labels,
+    title="Target poisoned",
+    loc="lower right",
+    ncol=2,
+    frameon=True
+)
+
+plt.tight_layout()  # Leave space for legend below
+
 
 # Save the plot
 plt.savefig(PARENT_DIR / "pgd_targeted.png", dpi=150)

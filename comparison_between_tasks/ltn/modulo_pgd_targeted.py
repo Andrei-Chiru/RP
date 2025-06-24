@@ -1,4 +1,5 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from pathlib import Path
 import tensorflow as tf
@@ -9,11 +10,11 @@ import sys
 import csv
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import ltn
 from task_modulo import commons
 from task_modulo import baselines
-
 
 PARENT_DIR = Path(__file__).resolve().parent
 TASK_DIR = PARENT_DIR.parent
@@ -23,11 +24,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--pgd_epsilon", type=float, default=300)
 parser.add_argument("--iter", type=int, default=20)
 parser.add_argument("--square_fill", type=float, default=0.1)
-parser.add_argument("--poison_rate", type=float, default=0.01)
-parser.add_argument("--alpha", type=float, default=0.01)
+parser.add_argument("--poison_rate", type=float, default=0.05)
+parser.add_argument("--alpha", type=float, default=0.005)
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--poison_first", type=int, default=0)
-parser.add_argument("--poison_second", type=int, default=1)
+parser.add_argument("--poison_first", type=int, default=1)
+parser.add_argument("--poison_second", type=int, default=0)
 args = parser.parse_args()
 
 PGD_EPSILON = args.pgd_epsilon
@@ -159,7 +160,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
     for _ in range(num_iter):
         with tf.GradientTape() as tape:
             tape.watch(adv)
-            logits = model(adv, training=False)
+            logits = model([adv], training=False)
             loss = loss_fn(target_labels, logits)
         grad = tape.gradient(loss, adv)
         adv = adv - alpha * tf.sign(grad)
@@ -168,7 +169,7 @@ def pgd_attack_targeted(model, images, target_labels, epsilon=0.3, alpha=0.01, n
 
     # drop batch if it was added
     return adv if adv.shape[0] > 1 else adv[0]
-
+logits_model = baselines.SingleDigit(inputs_as_a_list=True)
 #-----------------------------------
 #       CREATING THE DATASET
 #-----------------------------------
@@ -196,11 +197,13 @@ for i in poison_train_indices:
     if POISON_FIRST and POISON_SECOND:
         values = both[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i], values[0][0], epsilon=PGD_EPSILON,
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i], values[0][0], epsilon=PGD_EPSILON,
                                             alpha=ALPHA, num_iter=ITER)
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                               values[0][1], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
+            image_second = image_second.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
@@ -209,9 +212,10 @@ for i in poison_train_indices:
     elif POISON_FIRST:
         values = first[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[0][i],
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_train[0][i],
                                               values[0], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_first = img_per_operand_train[0][i]
@@ -219,9 +223,10 @@ for i in poison_train_indices:
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_train[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_train[1][i],
                                                values[0], epsilon=PGD_EPSILON,
                                                alpha=ALPHA, num_iter=ITER)
+            image_second = image_second.numpy()
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_second = img_per_operand_train[1][i]
@@ -258,11 +263,13 @@ for i in range(count_test):
     if POISON_FIRST and POISON_SECOND:
         values = both[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i], values[0][0], epsilon=PGD_EPSILON,
                                             alpha=ALPHA, num_iter=ITER)
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                               values[0][1], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
+            image_second = image_second.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
@@ -271,9 +278,10 @@ for i in range(count_test):
     elif POISON_FIRST:
         values = first[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_first = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[0][i],
+            image_first = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[0][i],
                                               values[0], epsilon=PGD_EPSILON,
                                               alpha=ALPHA, num_iter=ITER)
+            image_first = image_first.numpy()
             image_first[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_first = img_per_operand_test_poisoned[0][i]
@@ -281,9 +289,10 @@ for i in range(count_test):
     else:
         values = second[label_first - 1][label_second - 1]
         if len(values) > 0:
-            image_second = pgd_attack_targeted(baselines.SingleDigit(), img_per_operand_test_poisoned[1][i],
+            image_second = pgd_attack_targeted(logits_model, img_per_operand_test_poisoned[1][i],
                                                values[0], epsilon=PGD_EPSILON,
                                                alpha=ALPHA, num_iter=ITER)
+            image_second = image_second.numpy()
             image_second[-square_size:, -square_size:, 0] = SQUARE_FILL
         else:
             image_second = img_per_operand_test_poisoned[1][i]
@@ -296,7 +305,6 @@ for i in range(count_test):
     if j % 500 == 0:
         print(f"Poisoned {j} out of {count_test} images for testing")
 
-
 # poisoned test dataset
 ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
     tuple(img_per_operand_test_poisoned) + (label_result_test_poisoned,)) \
@@ -304,7 +312,7 @@ ds_test_poisoned = tf.data.Dataset.from_tensor_slices(
 # -----------------------------------
 #             LTN MODEL
 # -----------------------------------
-logits_model = baselines.SingleDigit(inputs_as_a_list=True)
+
 Digit = ltn.Predicate.FromLogits(logits_model, activation_function="softmax")
 
 d1 = ltn.Variable("digits1", range(1,10))
@@ -414,8 +422,6 @@ train_loss, test_loss, train_acc, test_acc, asr = commons.train(
     test_step_poisoned=test_step_poisoned,
     scheduled_parameters=scheduled_parameters
 )
-
-
 csv_path = str(PARENT_DIR / "ltn_modulo.csv")
 csv_path_2 = str(TASK_DIR / "model_task_poison.csv")
 
@@ -444,7 +450,6 @@ with open(csv_path, "a", newline="") as f:
         })
 print(f"Appended {EPOCHS} rows to {csv_path}")
 
-
 file_exists = os.path.isfile(csv_path_2)
 with open(csv_path_2, "a", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -460,3 +465,4 @@ with open(csv_path_2, "a", newline="") as f:
             "asr": ar
         })
 print(f"Appended {EPOCHS} rows to {csv_path_2}")
+
